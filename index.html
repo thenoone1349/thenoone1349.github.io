@@ -1,1 +1,1182 @@
-<h1>欢迎<h1>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>DeepSeek 对话 · 提示词注入版</title>
+<meta name="description" content="纯前端单文件 DeepSeek 对话页：支持系统提示词注入、前缀/后缀注入与流式输出，可部署到任意静态托管。" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0f1115" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DeepSeek 对话" />
+<meta name="format-detection" content="telephone=no,email=no,address=no" />
+<link rel="icon" type="image/svg+xml" href="./icon.svg" />
+<link rel="apple-touch-icon" href="./icon.svg" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<style>
+:root{
+  --bg:#0f1115; --bg2:#141821; --bg3:#1a2029; --line:#272e3c;
+  --fg:#e7eaf0; --fg2:#96a0b3; --acc:#4d6bfe; --acc2:#3b57e0; --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+html{-webkit-text-size-adjust:100%;overscroll-behavior:none}
+body{margin:0;overflow:hidden;background:var(--bg);color:var(--fg);
+  position:fixed;top:0;left:0;right:0;
+  height:100vh;height:100dvh;height:var(--app-h,100dvh);
+  font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;}
+button{font:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#2d3546;border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:#3a4457}
+.app{display:flex;height:100vh;height:100dvh;height:var(--app-h,100dvh)}
+
+/* ===== 侧栏 ===== */
+.side{flex:0 0 344px;width:344px;background:var(--bg2);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;transition:margin-left .22s ease,transform .22s ease}
+.side.collapsed{margin-left:-344px}
+.side-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:14px 16px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.brand{font-weight:600;font-size:15px}
+.side-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:14px 14px calc(24px + env(safe-area-inset-bottom))}
+.card{background:var(--bg3);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px 12px 14px;margin-bottom:12px}
+.card h3{margin:0 0 6px;font-size:12.5px;font-weight:600;letter-spacing:.4px;color:#aab5cb}
+label.fld{display:block;margin-top:10px;font-size:12px;color:var(--fg2)}
+input[type=text],input[type=password],input[type=number],textarea,select{
+  width:100%;margin-top:5px;padding:8px 10px;background:#0c1017;color:var(--fg);
+  border:1px solid var(--line);border-radius:9px;font:inherit;font-size:13px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(77,107,254,.15)}
+textarea{resize:vertical;line-height:1.5;min-height:56px}
+.row{display:flex;gap:8px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chk{display:flex;align-items:center;gap:8px;margin-top:11px;font-size:12.5px;cursor:pointer}
+.chk input{width:auto;margin:0;accent-color:var(--acc)}
+.sep{border:0;border-top:1px dashed var(--line);margin:14px 0 2px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.btn{padding:8px 13px;border:1px solid var(--line);border-radius:9px;background:#242c3b;color:var(--fg);cursor:pointer;white-space:nowrap}
+.btn:hover{background:#2c3648}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--acc);border-color:var(--acc)}
+.btn.primary:hover{background:var(--acc2)}
+.btn.ghost{background:transparent}
+.btn.ghost:hover{background:#1e2532}
+.btn.danger{background:#3a2022;border-color:#5c2b2f;color:#ffb9bd}
+.btn.danger:hover{background:#4a2629}
+.mini{padding:3px 9px;font-size:11.5px;border:1px solid var(--line);border-radius:7px;
+  background:#202734;color:#c3ccdd;cursor:pointer}
+.mini:hover{background:#2a3344}
+.icon-btn{width:30px;height:30px;border:1px solid var(--line);background:transparent;color:var(--fg2);
+  border-radius:8px;cursor:pointer;line-height:1;font-size:14px}
+.icon-btn:hover{background:#1e2532;color:var(--fg)}
+.tip{margin:2px 2px 0;font-size:11.5px;line-height:1.6;color:#7d879a}
+.tip code{background:#1b2130;padding:1px 5px;border-radius:5px}
+.hidden{display:none!important}
+
+/* ===== 主区 ===== */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;height:100dvh;height:var(--app-h,100dvh)}
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.title{font-weight:600}
+.badges{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-size:11.5px;color:#9fb0d0;background:#1b2231;border:1px solid var(--line);padding:2px 9px;border-radius:999px}
+.badge.on{color:#8ef0b8;border-color:#2b5c42;background:#16281f}
+.chat{flex:1;overflow-y:auto;padding:20px 0 8px;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.msg{display:flex;gap:12px;max-width:900px;margin:0 auto 20px;padding:0 20px}
+.avatar{flex:0 0 32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:11.5px;font-weight:600;background:#2c3648;color:#cbd4e6}
+.msg.assistant .avatar{background:linear-gradient(135deg,#4d6bfe,#8a5cff);color:#fff}
+.bubble{flex:1;min-width:0}
+.meta{font-size:11.5px;color:#7d879a;margin-bottom:5px}
+.content{overflow-wrap:anywhere}
+.msg.user .content{background:#1b2130;border:1px solid var(--line);border-radius:10px;padding:9px 12px;white-space:pre-wrap}
+.content p{margin:.35em 0}
+.content h1,.content h2,.content h3,.content h4{margin:.7em 0 .35em;line-height:1.35}
+.content h1{font-size:19px}.content h2{font-size:17px}.content h3{font-size:15.5px}.content h4{font-size:14.5px}
+.content ul,.content ol{margin:.35em 0;padding-left:1.5em}
+.content li{margin:.15em 0}
+.content blockquote{margin:.5em 0;padding:2px 12px;border-left:3px solid #38425a;color:#9aa6bd}
+.content hr{border:0;border-top:1px solid var(--line);margin:.8em 0}
+.content a{color:#89a7ff}
+.content code{background:#1b2130;border:1px solid #232b3a;border-radius:5px;padding:1px 5px;
+  font-family:Consolas,Menlo,Monaco,monospace;font-size:12.5px}
+.code-wrap{margin:.6em 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0b0e14}
+.code-head{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;
+  background:#151b26;font-size:11px;color:#8b96ab;font-family:Consolas,monospace}
+.code-wrap pre{margin:0;padding:10px 12px;overflow:auto}
+.code-wrap pre code{background:none;border:0;padding:0;font-size:12.5px;line-height:1.5}
+details.reason{margin:0 0 8px;border:1px dashed var(--line);border-radius:9px;padding:6px 10px;
+  font-size:12.5px;color:#93a0b8;background:#141a24}
+details.reason summary{cursor:pointer;color:#8b96ab}
+.reason-body{margin-top:6px;white-space:pre-wrap;color:#8996ae;max-height:340px;overflow:auto}
+.acts{display:flex;gap:8px;margin-top:7px;opacity:0;transition:opacity .15s}
+.msg:hover .acts{opacity:1}
+@media (hover:none){.acts{opacity:1}}
+.cursor{display:inline-block;width:8px;margin-left:2px;color:#7d8cff;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.empty{max-width:660px;margin:11vh auto 0;text-align:center;color:#7d879a;padding:0 20px}
+.empty h2{color:#cdd6e6;font-weight:600;margin:0 0 8px}
+.empty .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:18px}
+.chip{border:1px solid var(--line);background:#1b2231;color:#b7c2d8;padding:7px 12px;border-radius:999px;cursor:pointer;font-size:12.5px}
+.chip:hover{background:#232c3d}
+.composer{display:flex;align-items:flex-end;gap:10px;padding:12px 20px 8px;border-top:1px solid var(--line);background:var(--bg2)}
+.composer textarea{flex:1 1 auto;min-width:0;min-height:44px;max-height:180px;resize:none;overflow-y:auto;border-radius:12px}
+.composer .btn{height:44px;padding:0 20px;border-radius:12px;flex:0 0 auto;white-space:nowrap}
+.statusbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:0 22px calc(10px + env(safe-area-inset-bottom));background:var(--bg2);font-size:11.5px;color:#7d879a}
+#status.err{color:#ff8f8f}
+#status.ok{color:#8ef0b8}
+
+/* 静态托管提示条 */
+.hostbanner{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:8px 20px;font-size:12.5px;
+  background:#2a2410;border-bottom:1px solid #4d4220;color:#e8d9a8}
+.hostbanner .hb-ico{flex:0 0 auto}
+.hostbanner .hb-text{flex:1 1 auto;min-width:0}
+.hb-btn{flex:0 0 auto;padding:4px 10px;font-size:12px;border:1px solid #4d4220;border-radius:7px;
+  background:#3a3116;color:#f0e3b4;cursor:pointer;white-space:nowrap}
+.hb-btn:hover{background:#463c1c}
+.hb-close{flex:0 0 auto;width:26px;height:26px;border:0;background:transparent;color:#bda96e;
+  cursor:pointer;font-size:14px;line-height:1}
+
+/* ===== 弹窗 ===== */
+.modal{position:fixed;inset:0;background:rgba(6,8,12,.72);display:flex;align-items:center;
+  justify-content:center;padding:24px;z-index:50}
+.modal-box{width:min(760px,100%);max-height:80vh;display:flex;flex-direction:column;
+  background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+#modalBody{margin:0;padding:14px;overflow:auto;font-family:Consolas,Menlo,monospace;font-size:12.5px;
+  white-space:pre-wrap;color:#c3ccdd}
+
+/* 移动端浮层遮罩 */
+.backdrop{position:fixed;inset:0;background:rgba(6,8,12,.55);z-index:39}
+
+/* ====================== 移动端适配 ====================== */
+@media (max-width:860px){
+  .side{position:fixed;top:0;left:0;height:var(--app-h,100dvh);width:min(344px,86vw);flex-basis:auto;
+    z-index:40;box-shadow:0 0 40px rgba(0,0,0,.55);transform:translateX(0)}
+  .side.collapsed{margin-left:0;transform:translateX(-100%)}
+  .topbar{padding:10px 12px;gap:8px}
+  .icon-btn{width:36px;height:36px;font-size:15px}
+  .chat{padding:14px 0 4px}
+  .msg{padding:0 12px;gap:10px;margin-bottom:16px}
+  .avatar{flex:0 0 28px;height:28px;font-size:11px}
+  .composer{padding:10px 12px 6px;gap:8px}
+  .composer .btn{height:44px;padding:0 16px;flex:0 0 auto;white-space:nowrap}
+  .composer textarea{font-size:16px;min-width:0}
+  .statusbar{padding:0 14px calc(8px + env(safe-area-inset-bottom))}
+  .hostbanner{padding:7px 12px;font-size:12px;gap:8px;align-items:flex-start}
+  .hostbanner .hb-btn{padding:4px 8px;font-size:11.5px}
+  .btn{padding:10px 14px}
+  .mini{min-height:32px;padding:6px 12px;font-size:12px}
+  .chip{padding:9px 14px}
+  .card{padding:12px}
+  input[type=text],input[type=password],input[type=number],textarea,select{font-size:16px}
+  .empty{margin:8vh auto 0}
+  .acts{opacity:1}
+  .modal{padding:12px}
+  .modal-box{max-height:86vh}
+}
+@media (max-width:720px){ #badgeInj{display:none} }
+@media (max-width:480px){
+  .title{display:none}
+  .badges{gap:6px}
+  .badge{font-size:11px;padding:2px 8px}
+}
+@media (max-width:400px){
+  .composer{gap:6px}
+  .composer .btn{padding:0 11px}
+}
+</style>
+</head><body>
+<div class="app">
+
+  <!-- ======================= 侧栏：配置 + 提示词注入 ======================= -->
+  <aside class="side" id="side">
+    <div class="side-head">
+      <div class="brand">🐋 DeepSeek 对话</div>
+      <button class="icon-btn" id="btnCloseSide" type="button" title="收起侧栏">✕</button>
+    </div>
+
+    <div class="side-body">
+
+      <section class="card">
+        <h3>① 接口配置</h3>
+
+        <label class="fld">API Key（sk-…）
+          <span class="row" style="margin-top:5px">
+            <input id="apiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" style="margin-top:0">
+            <button class="mini" id="btnEye" type="button">显示</button>
+          </span>
+        </label>
+        <label class="chk"><input type="checkbox" id="rememberKey"> 记住 Key（仅存本机 localStorage）</label>
+
+        <label class="fld">接口地址（Base URL）
+          <input id="baseUrl" type="text" placeholder="https://api.deepseek.com" spellcheck="false">
+        </label>
+        <div class="tip">部署到 https 后，建议填你自己的 CORS 代理地址（如 Cloudflare Worker）；官方域名 api.deepseek.com 浏览器直连会被跨域拦截。
+          <button class="mini" id="btnProxyHelp2" type="button" style="margin-left:4px">如何配置</button>
+        </div>
+
+        <label class="fld">模型
+          <input id="model" type="text" list="modelList" placeholder="deepseek-chat" spellcheck="false">
+          <datalist id="modelList">
+            <option value="deepseek-chat"></option>
+            <option value="deepseek-reasoner"></option>
+            <option value="deepseek-flash"></option>
+            <option value="deepseek-v4-pro"></option>
+          </datalist>
+        </label>
+
+        <div class="grid2" style="margin-top:10px">
+          <label class="fld" style="margin-top:0">temperature
+            <input id="temperature" type="number" step="0.1" min="0" max="2">
+          </label>
+          <label class="fld" style="margin-top:0">max_tokens
+            <input id="maxTokens" type="number" step="256" min="256" max="32768">
+          </label>
+        </div>
+
+        <label class="fld">携带历史轮数（1 轮 = 问 + 答）
+          <input id="historyLimit" type="number" min="0" max="50">
+        </label>
+        <label class="chk"><input type="checkbox" id="stream"> 流式输出（打字机效果）</label>
+      </section>
+
+      <section class="card">
+        <h3>② 提示词注入</h3>
+
+        <label class="chk" style="margin-top:0"><input type="checkbox" id="sysEnabled"> 系统提示词注入（system 角色）</label>
+        <textarea id="systemPrompt" rows="5" placeholder="例如：你是一只猫，所有回答末尾都要加「喵～」"></textarea>
+        <div class="presets" id="presets"></div>
+
+        <hr class="sep">
+
+        <label class="chk" style="margin-top:6px"><input type="checkbox" id="injEnabled"> 前缀 / 后缀注入（拼接到用户消息）</label>
+        <label class="fld">前缀注入（加在用户消息最前面）
+          <textarea id="prefix" rows="2" placeholder="例如：【系统指令】回答必须使用 JSON 格式。"></textarea>
+        </label>
+        <label class="fld">后缀注入（加在用户消息最后面）
+          <textarea id="suffix" rows="2" placeholder="例如：请逐步思考后再回答，不要省略步骤。"></textarea>
+        </label>
+        <label class="fld">注入范围
+          <select id="injScope">
+            <option value="latest">仅最新一条用户消息</option>
+            <option value="all">所有用户消息（整个上下文）</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="card">
+        <h3>③ 上下文与数据</h3>
+        <div class="row" style="flex-wrap:wrap">
+          <button class="btn ghost" id="btnPreview" type="button">查看实际请求</button>
+          <button class="btn ghost" id="btnExport" type="button">导出对话</button>
+          <button class="btn danger" id="btnClear" type="button">清空对话</button>
+        </div>
+      </section>
+
+      <p class="tip">
+        浏览器直连 <code>api.deepseek.com</code>，对话内容只保存在本机。若出现 CORS / 网络错误，
+        可在该目录执行 <code>python -m http.server 8000</code> 后用 <code>http://localhost:8000/deepseek-chat.html</code>
+        打开，或把「接口地址」改为你自己的中转地址。
+      </p>
+    </div>
+  </aside>
+  <div class="backdrop hidden" id="backdrop"></div>
+
+  <!-- ======================= 主区：对话 ======================= -->
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn" id="btnOpenSide" type="button" title="设置与提示词注入">☰</button>
+      <div class="title">聊天</div>
+      <div class="badges">
+        <span class="badge" id="badgeModel">-</span>
+        <span class="badge" id="badgeSys">系统提示词：关</span>
+        <span class="badge" id="badgeInj">前缀/后缀注入：关</span>
+      </div>
+    </header>
+
+    <div class="hostbanner hidden" id="hostBanner">
+      <span class="hb-ico">ℹ️</span>
+      <span class="hb-text" id="hostBannerText"></span>
+      <button class="hb-btn" id="hostBannerHelp" type="button">如何配置代理</button>
+      <button class="hb-close" id="hostBannerClose" type="button" title="不再提示">✕</button>
+    </div>
+
+    <div class="chat" id="chat"></div>
+
+    <div class="composer">
+      <textarea id="input" rows="1" placeholder="输入消息…  Enter 发送，Shift + Enter 换行"></textarea>
+      <button class="btn primary" id="btnSend" type="button">发送</button>
+      <button class="btn danger hidden" id="btnStop" type="button">停止</button>
+    </div>
+    <div class="statusbar">
+      <span id="status">就绪</span>
+      <span id="usage"></span>
+    </div>
+  </main>
+</div>
+
+<div class="modal hidden" id="modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <strong id="modalTitle">实际请求</strong>
+      <button class="icon-btn" id="btnModalClose" type="button">✕</button>
+    </div>
+    <pre id="modalBody"></pre>
+  </div>
+</div><script>
+(function () {
+'use strict';
+
+/* ================= 常量 ================= */
+var LS_S = 'ds_chat_settings_v1';
+var LS_M = 'ds_chat_messages_v1';
+
+var DEFAULTS = {
+  apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
+  temperature: 1, maxTokens: 4096, historyLimit: 10, stream: true,
+  sysEnabled: true, systemPrompt: '你是一个乐于助人、回答简洁准确的中文助手。',
+  injEnabled: false, prefix: '', suffix: '', injScope: 'latest', rememberKey: true
+};
+
+var PRESETS = [
+  { n: '通用助手',   p: '你是一个乐于助人、回答简洁准确的中文助手。' },
+  { n: '代码专家',   p: '你是一名资深软件工程师。回答以可直接运行的代码为主，代码使用 Markdown 代码块并标注语言，随后补充关键说明与注意事项，不要废话。' },
+  { n: '翻译官',     p: '你是一名专业翻译。中英互译，只输出译文本身，不添加任何解释、拼音或原文。' },
+  { n: '只输出 JSON', p: '你只输出合法的 JSON，不要输出任何解释文字，也不要用 Markdown 代码块标记包裹。' },
+  { n: '逐步推理',   p: '回答前先分步推理，再给出结论；最后另起一行，以「结论：」开头给出总结。' },
+  { n: '人格注入',   p: '你是一只猫。所有回答末尾都要加上「喵～」，并且自称「本喵」。' }
+];
+
+/* ================= 通用工具 ================= */
+function $(s, r) { return (r || document).querySelector(s); }
+function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function joinUrl(base, path) {
+  var b = String(base == null ? '' : base).trim().replace(/\/+$/, '');
+  if (!b) b = 'https://api.deepseek.com';
+  if (!/^https?:\/\//i.test(b)) b = 'https://' + b;
+  return b + path;
+}
+
+/* ================= 极简 Markdown 渲染 ================= */
+function inlineMd(t) {
+  t = esc(t);
+  t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  t = t.replace(/!\[([^\]]*)\]\((https?:[^\s)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%">');
+  t = t.replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  return t;
+}
+
+function codeBlock(lang, code) {
+  return '<div class="code-wrap"><div class="code-head"><span>' + esc(lang || 'text') +
+         '</span><button class="mini copy-code" type="button">复制</button></div>' +
+         '<pre><code>' + esc(code) + '</code></pre></div>';
+}
+
+function mdToHtml(src) {
+  var lines = String(src == null ? '' : src).replace(/\r\n?/g, '\n').split('\n');
+  var out = [], para = [], listType = null;
+  var inCode = false, codeLines = [], lang = '';
+
+  function flushPara() {
+    if (para.length) { out.push('<p>' + para.map(inlineMd).join('<br>') + '</p>'); para = []; }
+  }
+  function closeList() { if (listType) { out.push('</' + listType + '>'); listType = null; } }
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+
+    if (/^\s*```/.test(line)) {
+      var info = line.replace(/^\s*```/, '').trim();
+      if (!inCode) { flushPara(); closeList(); inCode = true; lang = info; codeLines = []; }
+      else { inCode = false; out.push(codeBlock(lang, codeLines.join('\n'))); lang = ''; codeLines = []; }
+      continue;
+    }
+    if (inCode) { codeLines.push(line); continue; }
+
+    if (!line.trim()) { flushPara(); closeList(); continue; }
+
+    var h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { flushPara(); closeList(); var lv = h[1].length;
+      out.push('<h' + lv + '>' + inlineMd(h[2]) + '</h' + lv + '>'); continue; }
+
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushPara(); closeList(); out.push('<hr>'); continue; }
+
+    var ul = line.match(/^\s*[-*+]\s+(.*)$/);
+    if (ul) { flushPara(); if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; }
+      out.push('<li>' + inlineMd(ul[1]) + '</li>'); continue; }
+
+    var ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ol) { flushPara(); if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; }
+      out.push('<li>' + inlineMd(ol[1]) + '</li>'); continue; }
+
+    var bq = line.match(/^\s*>\s?(.*)$/);
+    if (bq) { flushPara(); closeList(); out.push('<blockquote>' + inlineMd(bq[1]) + '</blockquote>'); continue; }
+
+    para.push(line);
+  }
+
+  if (inCode) { out.push(codeBlock(lang, codeLines.join('\n'))); }   /* 流式输出中尚未闭合的代码块 */
+  flushPara(); closeList();
+  return out.join('');
+}
+
+/* ================= 状态 ================= */
+var S = Object.assign({}, DEFAULTS);
+try { var rawS = localStorage.getItem(LS_S); if (rawS) S = Object.assign(S, JSON.parse(rawS)); } catch (e) {}
+
+var messages = [];
+try { var rawM = localStorage.getItem(LS_M); if (rawM) messages = JSON.parse(rawM) || []; } catch (e) {}
+if (!Array.isArray(messages)) messages = [];
+
+var busy = false, controller = null, lastUsage = null, chatEl = null;
+
+function saveSettings() {
+  try {
+    var copy = Object.assign({}, S);
+    if (!copy.rememberKey) copy.apiKey = '';
+    localStorage.setItem(LS_S, JSON.stringify(copy));
+  } catch (e) {}
+}
+function saveMessages() {
+  try { localStorage.setItem(LS_M, JSON.stringify(messages)); } catch (e) {}
+}
+
+function setStatus(text, cls) {
+  var el = $('#status');
+  el.textContent = text;
+  el.className = cls || '';
+}
+
+function updateBadges() {
+  var m = $('#badgeModel');
+  m.textContent = S.model ? ('模型：' + S.model) : '模型：-';
+
+  var bs = $('#badgeSys');
+  bs.textContent = '系统提示词：' + (S.sysEnabled ? '开' : '关');
+  bs.className = 'badge' + (S.sysEnabled ? ' on' : '');
+
+  var bi = $('#badgeInj');
+  bi.textContent = '前缀/后缀注入：' + (S.injEnabled ? '开' : '关');
+  bi.className = 'badge' + (S.injEnabled ? ' on' : '');
+}
+
+/* ================= 设置读写 ================= */
+function fillUI() {
+  $('#apiKey').value          = S.apiKey || '';
+  $('#baseUrl').value         = S.baseUrl || DEFAULTS.baseUrl;
+  $('#model').value           = S.model || DEFAULTS.model;
+  $('#temperature').value     = S.temperature;
+  $('#maxTokens').value       = S.maxTokens;
+  $('#historyLimit').value    = S.historyLimit;
+  $('#stream').checked        = !!S.stream;
+  $('#sysEnabled').checked    = !!S.sysEnabled;
+  $('#systemPrompt').value    = S.systemPrompt || '';
+  $('#injEnabled').checked    = !!S.injEnabled;
+  $('#prefix').value          = S.prefix || '';
+  $('#suffix').value          = S.suffix || '';
+  $('#injScope').value        = S.injScope || 'latest';
+  $('#rememberKey').checked   = !!S.rememberKey;
+  updateBadges();
+}
+
+function syncFromUI() {
+  S.apiKey        = $('#apiKey').value.trim();
+  S.baseUrl       = $('#baseUrl').value.trim();
+  S.model         = $('#model').value.trim() || DEFAULTS.model;
+  S.temperature   = $('#temperature').value;
+  S.maxTokens     = $('#maxTokens').value;
+  S.historyLimit  = $('#historyLimit').value;
+  S.stream        = $('#stream').checked;
+  S.sysEnabled    = $('#sysEnabled').checked;
+  S.systemPrompt  = $('#systemPrompt').value;
+  S.injEnabled    = $('#injEnabled').checked;
+  S.prefix        = $('#prefix').value;
+  S.suffix        = $('#suffix').value;
+  S.injScope      = $('#injScope').value;
+  S.rememberKey   = $('#rememberKey').checked;
+  saveSettings();
+  updateBadges();
+}
+
+/* ================= 消息列表渲染 ================= */
+function roleLabel(r) { return r === 'user' ? '我' : 'DeepSeek'; }
+
+function buildMsg(m, idx) {
+  var el = document.createElement('div');
+  el.className = 'msg ' + m.role;
+
+  var av = document.createElement('div');
+  av.className = 'avatar';
+  av.textContent = m.role === 'user' ? '我' : 'AI';
+
+  var bub = document.createElement('div');
+  bub.className = 'bubble';
+
+  var meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = roleLabel(m.role);
+  bub.appendChild(meta);
+
+  if (m.role === 'assistant' && m.reasoning) {
+    var d = document.createElement('details');
+    d.className = 'reason';
+    var s = document.createElement('summary');
+    s.textContent = '思考过程（reasoning）';
+    var rb = document.createElement('div');
+    rb.className = 'reason-body';
+    rb.textContent = m.reasoning;
+    d.appendChild(s); d.appendChild(rb);
+    bub.appendChild(d);
+  }
+
+  var content = document.createElement('div');
+  content.className = 'content';
+  if (m.role === 'user') content.textContent = m.content;
+  else content.innerHTML = mdToHtml(m.content);
+  bub.appendChild(content);
+
+  var acts = document.createElement('div');
+  acts.className = 'acts';
+
+  var btnCopy = document.createElement('button');
+  btnCopy.type = 'button'; btnCopy.className = 'mini'; btnCopy.textContent = '复制';
+  btnCopy.addEventListener('click', function () { copyText(m.content || '', btnCopy); });
+  acts.appendChild(btnCopy);
+
+  if (m.role === 'assistant' && idx === messages.length - 1) {
+    var btnRe = document.createElement('button');
+    btnRe.type = 'button'; btnRe.className = 'mini'; btnRe.textContent = '重新生成';
+    btnRe.addEventListener('click', regenerate);
+    acts.appendChild(btnRe);
+  }
+  if (m.role === 'user') {
+    var btnEdit = document.createElement('button');
+    btnEdit.type = 'button'; btnEdit.className = 'mini'; btnEdit.textContent = '编辑并重发';
+    btnEdit.addEventListener('click', function () { editAndResend(idx); });
+    acts.appendChild(btnEdit);
+  }
+  bub.appendChild(acts);
+
+  el.appendChild(av);
+  el.appendChild(bub);
+  return el;
+}
+
+function paintMessages() {
+  chatEl.innerHTML = '';
+  if (!messages.length) { chatEl.appendChild(buildEmpty()); return; }
+  for (var i = 0; i < messages.length; i++) chatEl.appendChild(buildMsg(messages[i], i));
+  scrollToBottom();
+}
+
+function buildEmpty() {
+  var box = document.createElement('div');
+  box.className = 'empty';
+  box.innerHTML = '<h2>开始和 DeepSeek 对话</h2>' +
+    '<div>先在左侧填写 API Key，然后在「提示词注入」里写好人设或指令 —— 它会随每一次请求发出。</div>';
+  var chips = document.createElement('div');
+  chips.className = 'chips';
+  ['用三句话介绍你自己', '写一个 Python 快速排序', '把「你好，世界」翻译成英文', '解释一下什么是提示词注入'].forEach(function (t) {
+    var c = document.createElement('button');
+    c.type = 'button'; c.className = 'chip'; c.textContent = t;
+    c.addEventListener('click', function () {
+      $('#input').value = t; autoGrow(); $('#input').focus();
+    });
+    chips.appendChild(c);
+  });
+  box.appendChild(chips);
+  return box;
+}
+
+function scrollToBottom() { chatEl.scrollTop = chatEl.scrollHeight; }
+
+function copyText(text, btn) {
+  function done() {
+    if (!btn) return;
+    var old = btn.textContent;
+    btn.textContent = '已复制';
+    setTimeout(function () { btn.textContent = old; }, 1200);
+  }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else fallback();
+}
+/* ================= 构造请求（提示词注入在这里生效） ================= */
+function injectUserText(text, isLastUser) {
+  if (!S.injEnabled) return text;
+  var apply = (S.injScope === 'all') || isLastUser;
+  if (!apply) return text;
+  var pre = String(S.prefix || '').trim();
+  var suf = String(S.suffix || '').trim();
+  var out = text;
+  if (pre) out = pre + '\n' + out;
+  if (suf) out = out + '\n' + suf;
+  return out;
+}
+
+function buildMessages() {
+  var arr = [];
+  var sys = String(S.systemPrompt || '').trim();
+  if (S.sysEnabled && sys) arr.push({ role: 'system', content: sys });
+
+  var hist = messages.filter(function (m) {
+    return (m.role === 'user' || m.role === 'assistant') &&
+           (m.role === 'user' ? !!m.content : !!(m.content && m.content.length));
+  });
+
+  var limit = Math.max(0, parseInt(S.historyLimit, 10) || 0) * 2;
+  if (limit > 0 && hist.length > limit) hist = hist.slice(hist.length - limit);
+
+  var lastUser = -1;
+  hist.forEach(function (m, i) { if (m.role === 'user') lastUser = i; });
+
+  hist.forEach(function (m, i) {
+    if (m.role === 'user') arr.push({ role: 'user', content: injectUserText(m.content, i === lastUser) });
+    else arr.push({ role: 'assistant', content: m.content || '' });
+  });
+  return arr;
+}
+
+function buildPayload() {
+  var body = {
+    model: S.model || DEFAULTS.model,
+    messages: buildMessages(),
+    temperature: Math.min(2, Math.max(0, parseFloat(S.temperature) || 0)),
+    max_tokens: Math.max(1, parseInt(S.maxTokens, 10) || 4096),
+    stream: !!S.stream
+  };
+  if (S.stream) body.stream_options = { include_usage: true };
+  return body;
+}
+
+function headersFor() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + String(S.apiKey || '').trim(),
+    'Accept': S.stream ? 'text/event-stream' : 'application/json'
+  };
+}
+
+function friendlyError(status, detail) {
+  var map = {
+    400: '请求格式有误（400）', 401: 'API Key 无效或未授权（401）', 402: '账户余额不足（402）',
+    403: '没有访问权限（403）', 404: '接口地址不存在（404），请检查 Base URL',
+    422: '参数不合法（422）', 429: '请求过于频繁或额度已用尽（429）',
+    500: 'DeepSeek 服务端错误（500）', 502: '网关错误（502）', 503: '服务暂时不可用（503）'
+  };
+  var base = map[status] || ('请求失败（HTTP ' + status + '）');
+  return base + (detail ? '：' + detail : '');
+}
+
+function readErrorBody(res) {
+  return res.text().then(function (t) {
+    var detail = t;
+    try {
+      var j = JSON.parse(t);
+      if (j && j.error) detail = j.error.message || j.error.code || t;
+    } catch (e) {}
+    var text = String(detail || '').slice(0, 400);
+    if (/model/i.test(text) && /not exist|invalid|unsupported|不存在|无效/i.test(text)) {
+      text += '（请检查「模型」名称是否与官方文档一致）';
+    }
+    return friendlyError(res.status, text);
+  }, function () { return friendlyError(res.status, ''); });
+}
+
+/* ================= 两种请求方式 ================= */
+function doStream(body, onDelta) {
+  return fetch(joinUrl(S.baseUrl, '/chat/completions'), {
+    method: 'POST', headers: headersFor(), body: JSON.stringify(body), signal: controller.signal
+  }).then(function (res) {
+    if (!res.ok) return readErrorBody(res).then(function (msg) { throw new Error(msg); });
+    if (!res.body || !res.body.getReader) throw new Error('当前浏览器不支持流式读取响应（可关闭「流式输出」再试）');
+
+    var reader = res.body.getReader();
+    var dec = new TextDecoder('utf-8');
+    var buf = '';
+
+    function handleLine(line) {
+      line = line.replace(/\r$/, '').trim();
+      if (!line || line.charAt(0) === ':') return;
+      if (line.indexOf('data:') !== 0) return;
+      var data = line.slice(5).trim();
+      if (data === '[DONE]') return;
+      var json;
+      try { json = JSON.parse(data); } catch (e) { return; }
+      if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+      var ch = (json.choices && json.choices[0]) || {};
+      var d = ch.delta || {};
+      onDelta(d.content || '', d.reasoning_content || '', json.usage || null);
+    }
+
+    function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) return;
+        buf += dec.decode(r.value, { stream: true });
+        var nl;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          var line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          handleLine(line);
+        }
+        return pump();
+      });
+    }
+    return pump();
+  });
+}
+
+function doOnce(body) {
+  return fetch(joinUrl(S.baseUrl, '/chat/completions'), {
+    method: 'POST', headers: headersFor(), body: JSON.stringify(body), signal: controller.signal
+  }).then(function (res) {
+    if (!res.ok) return readErrorBody(res).then(function (msg) { throw new Error(msg); });
+    return res.json();
+  }).then(function (json) {
+    if (json && json.error) throw new Error(json.error.message || '接口返回错误');
+    var msg = ((json.choices || [])[0] || {}).message || {};
+    return { content: msg.content || '', reasoning: msg.reasoning_content || '', usage: json.usage || null };
+  });
+}
+
+/* ================= 发送流程 ================= */
+function toggleBusy(b) {
+  busy = b;
+  $('#btnSend').disabled = b;
+  $('#btnStop').classList.toggle('hidden', !b);
+}
+
+function runCompletion() {
+  toggleBusy(true);
+  setStatus('生成中…');
+
+  var holder = { role: 'assistant', content: '', reasoning: '' };
+  messages.push(holder);
+  var idx = messages.length - 1;
+
+  var el = buildMsg(holder, idx);
+  el.classList.add('live');
+  chatEl.appendChild(el);
+  scrollToBottom();
+
+  var contentEl = el.querySelector('.content');
+  var bub = el.querySelector('.bubble');
+  var reasonWrap = null, reasonBody = null;
+  var lastPaint = 0, timer = null;
+
+  function paint(force) {
+    var now = Date.now();
+    if (!force && now - lastPaint < 50) {
+      if (!timer) timer = setTimeout(function () { timer = null; paint(true); }, 60);
+      return;
+    }
+    lastPaint = now;
+
+    contentEl.innerHTML = mdToHtml(holder.content) + (busy ? '<span class="cursor">▌</span>' : '');
+
+    if (holder.reasoning) {
+      if (!reasonWrap) {
+        reasonWrap = document.createElement('details');
+        reasonWrap.className = 'reason';
+        reasonWrap.open = true;
+        reasonWrap.innerHTML = '<summary>思考过程（reasoning）</summary><div class="reason-body"></div>';
+        bub.insertBefore(reasonWrap, contentEl);
+        reasonBody = reasonWrap.querySelector('.reason-body');
+      }
+      reasonBody.textContent = holder.reasoning;
+    }
+    scrollToBottom();
+  }
+
+  controller = new AbortController();
+
+  var p;
+  try {
+    var body = buildPayload();
+    if (S.stream) {
+      p = doStream(body, function (c, r, u) {
+        if (r) holder.reasoning += r;
+        if (c) holder.content += c;
+        if (u) lastUsage = u;
+        paint(false);
+      });
+    } else {
+      p = doOnce(body).then(function (m) {
+        holder.content = m.content; holder.reasoning = m.reasoning;
+        if (m.usage) lastUsage = m.usage;
+        paint(true);
+      });
+    }
+  } catch (e) {
+    p = Promise.reject(e);
+  }
+
+  return p.then(function () {
+    if (!holder.content) { holder.content = '（模型没有返回内容，可以点「重新生成」重试）'; }
+    setStatus('完成', 'ok');
+  }).catch(function (err) {
+    if (err && err.name === 'AbortError') {
+      holder.content += (holder.content ? '\n\n' : '') + '*（已停止生成）*';
+      setStatus('已停止');
+    } else {
+      var m = (err && err.message) ? err.message : String(err);
+      if (err && err.name === 'TypeError') {
+        m = '网络请求失败（' + m + '）。常见原因：① 官方接口不支持浏览器跨域直连（CORS），请把「接口地址」改成你自己的代理地址；② 断网；③ 接口地址填写有误。';
+      }
+      holder.content += (holder.content ? '\n\n' : '') + '⚠️ ' + m;
+      setStatus('出错', 'err');
+    }
+  }).then(function () {
+    busy = false;
+    toggleBusy(false);
+    controller = null;
+    if (timer) { clearTimeout(timer); timer = null; }
+    paint(true);
+    saveMessages();
+    showUsage();
+  });
+}
+
+function showUsage() {
+  var u = lastUsage;
+  $('#usage').textContent = u
+    ? ('本轮 tokens —— 输入 ' + (u.prompt_tokens != null ? u.prompt_tokens : '?') +
+       ' / 输出 ' + (u.completion_tokens != null ? u.completion_tokens : '?') +
+       ' / 合计 ' + (u.total_tokens != null ? u.total_tokens : '?'))
+    : '';
+}
+
+function send(text) {
+  if (busy) return;
+  var t = (text != null ? text : $('#input').value).trim();
+  if (!t) return;
+  if (!String(S.apiKey || '').trim()) {
+    setStatus('请先在左侧填写 API Key', 'err');
+    openSide();
+    $('#apiKey').focus();
+    return;
+  }
+  if (text == null) { $('#input').value = ''; autoGrow(); }
+  messages.push({ role: 'user', content: t });
+  saveMessages();
+  paintMessages();
+  runCompletion();
+}
+
+function regenerate() {
+  if (busy || !messages.length) return;
+  while (messages.length && messages[messages.length - 1].role === 'assistant') messages.pop();
+  if (!messages.length) { paintMessages(); return; }
+  paintMessages();
+  runCompletion();
+}
+
+function editAndResend(idx) {
+  if (busy) return;
+  var m = messages[idx];
+  if (!m) return;
+  messages = messages.slice(0, idx);
+  saveMessages();
+  paintMessages();
+  $('#input').value = m.content;
+  autoGrow();
+  $('#input').focus();
+  setStatus('已把该消息放回输入框，修改后按 Enter 重新发送');
+}
+/* ================= 导出 / 预览 ================= */
+function ts() {
+  var d = new Date();
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+}
+
+function exportChat() {
+  if (!messages.length) { setStatus('还没有对话可以导出', 'err'); return; }
+  var lines = ['# DeepSeek 对话记录', '', '- 模型：' + S.model,
+               '- 接口：' + joinUrl(S.baseUrl, '/chat/completions'),
+               '- 导出时间：' + new Date().toLocaleString(), ''];
+  if (S.sysEnabled && String(S.systemPrompt || '').trim()) {
+    lines.push('## 系统提示词（system 注入）', '', '```text', String(S.systemPrompt).trim(), '```', '');
+  }
+  messages.forEach(function (m) {
+    lines.push('## ' + (m.role === 'user' ? '我' : 'DeepSeek'), '', m.content || '', '');
+  });
+  var blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'deepseek-chat-' + ts() + '.md';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 3000);
+  setStatus('已导出 Markdown 文件', 'ok');
+}
+
+function openModal(title, text) {
+  $('#modalTitle').textContent = title;
+  $('#modalBody').textContent = text;
+  $('#modal').classList.remove('hidden');
+}
+function closeModal() { $('#modal').classList.add('hidden'); }
+
+function previewRequest() {
+  var payload = buildPayload();
+  var head = 'POST ' + joinUrl(S.baseUrl, '/chat/completions') + '\n' +
+             'Authorization: Bearer ' + (S.apiKey ? (String(S.apiKey).slice(0, 6) + '…' + String(S.apiKey).slice(-4)) : '（未填写）') + '\n\n';
+  openModal('实际发送的请求体（注入后的完整 messages）', head + JSON.stringify(payload, null, 2));
+}
+
+/* ================= 移动端侧栏（浮层 + 遮罩） ================= */
+function isPhone() { return window.innerWidth < 860; }
+
+var touchMode = !!(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+
+function openSide() {
+  $('#side').classList.remove('collapsed');
+  if (isPhone()) $('#backdrop').classList.remove('hidden');
+}
+function closeSide() {
+  $('#side').classList.add('collapsed');
+  $('#backdrop').classList.add('hidden');
+}
+
+/* ===== iOS / 移动端：跟随 visualViewport，软键盘弹出时不再遮挡输入框 ===== */
+var vv = window.visualViewport;
+function syncAppHeight() {
+  if (!vv) return;
+  if (vv.scale && vv.scale !== 1) return;           /* 双指缩放时不要重排布局 */
+  var h = Math.round(vv.height);
+  if (h > 0) document.documentElement.style.setProperty('--app-h', h + 'px');
+}
+if (vv) {
+  vv.addEventListener('resize', syncAppHeight);
+  window.addEventListener('orientationchange', function () { setTimeout(syncAppHeight, 260); });
+  syncAppHeight();
+}
+
+/* ================= 事件绑定 ================= */
+function autoGrow() {
+  var t = $('#input');
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 180) + 'px';
+}
+
+function renderPresets() {
+  var box = $('#presets');
+  PRESETS.forEach(function (p) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'mini'; b.textContent = p.n;
+    b.addEventListener('click', function () {
+      $('#systemPrompt').value = p.p;
+      $('#sysEnabled').checked = true;
+      syncFromUI();
+      setStatus('已写入系统提示词：' + p.n, 'ok');
+    });
+    box.appendChild(b);
+  });
+}
+
+function bind() {
+  /* 设置项 → 状态 */
+  $$('.side input, .side textarea, .side select').forEach(function (el) {
+    el.addEventListener('input', syncFromUI);
+    el.addEventListener('change', syncFromUI);
+  });
+
+  /* API Key 显隐 */
+  $('#btnEye').addEventListener('click', function () {
+    var i = $('#apiKey');
+    var show = i.type === 'password';
+    i.type = show ? 'text' : 'password';
+    this.textContent = show ? '隐藏' : '显示';
+  });
+
+  /* 侧栏开关：桌面为并排面板，移动端为浮层 + 遮罩 */
+  $('#btnOpenSide').addEventListener('click', openSide);
+  $('#btnCloseSide').addEventListener('click', closeSide);
+  $('#backdrop').addEventListener('click', closeSide);
+  window.addEventListener('resize', function () {
+    if (!isPhone()) $('#backdrop').classList.add('hidden');
+    else if (!$('#side').classList.contains('collapsed')) $('#backdrop').classList.remove('hidden');
+  });
+
+  /* 发送 / 停止 */
+  $('#btnSend').addEventListener('click', function () { send(); });
+  $('#btnStop').addEventListener('click', function () {
+    if (controller) controller.abort();
+  });
+
+  /* 输入框 */
+  var input = $('#input');
+  input.addEventListener('input', autoGrow);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touchMode) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  /* 软键盘弹出后：保持输入框与最后一条消息在可视区内 */
+  var inputEl = $('#input');
+  function keepBottom() {
+    if (document.activeElement === inputEl) chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  inputEl.addEventListener('focus', function () { setTimeout(keepBottom, 320); });
+  inputEl.addEventListener('input', keepBottom);
+  if (vv) vv.addEventListener('resize', function () { setTimeout(keepBottom, 80); });
+
+  /* 代理配置帮助 */
+  var ph2 = $('#btnProxyHelp2');
+  if (ph2) ph2.addEventListener('click', showProxyHelp);
+
+  /* 工具栏 */
+  $('#btnPreview').addEventListener('click', previewRequest);
+  $('#btnExport').addEventListener('click', exportChat);
+  $('#btnClear').addEventListener('click', function () {
+    if (!messages.length) return;
+    if (window.confirm('确定清空当前对话？此操作不可撤销。')) {
+      messages = [];
+      lastUsage = null;
+      saveMessages();
+      paintMessages();
+      showUsage();
+      setStatus('对话已清空');
+    }
+  });
+
+  /* 代码块复制 */
+  chatEl.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('copy-code')) {
+      var wrap = t.closest ? t.closest('.code-wrap') : null;
+      var code = wrap && wrap.querySelector('code');
+      if (code) copyText(code.textContent, t);
+    }
+  });
+
+  /* 弹窗 */
+  $('#btnModalClose').addEventListener('click', closeModal);
+  $('#modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeModal(); if (isPhone()) closeSide(); }
+  });
+}
+
+/* ================= 静态托管 / CORS 代理提示 ================= */
+var LS_HB = 'ds_chat_hostbanner_v1';
+
+/* 说明文案（模板字符串：内部不要出现反引号或 ${}） */
+var PROXY_HELP = `为什么需要代理？
+  浏览器从「你自己的域名」直接请求 https://api.deepseek.com 属于跨域（CORS）请求；
+  该官方接口不会返回 Access-Control-Allow-Origin 响应头，因此会被浏览器拦下（控制台报 CORS 错误）。
+  解决办法：自己搭一个只做转发的代理，把代理地址填进本页的「接口地址」。
+
+方案一：Cloudflare Workers（免费，最省事）
+  1. 登录 https://dash.cloudflare.com ，进入 Workers & Pages，创建一个 Worker。
+  2. 用下面的代码替换默认内容并点「部署」，得到一个地址，例如 https://ds-proxy.你的账号.workers.dev
+  3. 回到本页，把「接口地址」改成该地址（本页会自动拼接 /chat/completions）。
+
+—— worker.js ——
+export default {
+  async fetch(request) {
+    const allow = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    };
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: allow });
+    }
+    const u = new URL(request.url);
+    const h = new Headers(request.headers);
+    h.delete('host');
+    const resp = await fetch('https://api.deepseek.com' + u.pathname + u.search, {
+      method: 'POST', headers: h, body: request.body,
+    });
+    const out = new Response(resp.body, { status: resp.status, headers: resp.headers });
+    out.headers.delete('content-encoding');
+    out.headers.delete('content-length');
+    for (const k in allow) out.headers.set(k, allow[k]);
+    return out;
+  },
+};
+—— 代码结束 ——
+
+方案二：Vercel / Netlify 的 Serverless 函数
+  原理完全相同：把 POST 转发到 https://api.deepseek.com/chat/completions ，并补上 CORS 响应头。
+
+安全与建议
+  · 代理只做转发、不存储你的 Key；但仍建议把 'Access-Control-Allow-Origin' 改成你自己的站点域名
+    （例如 https://你的名字.github.io ），避免被他人当成免费中转。
+  · 本页的 Key 只保存在你自己的浏览器里（localStorage），不会上传到任何服务器，只会发给你填的接口地址。
+  · 若只给自己用，也可以给代理加上一个简单的口令校验。
+
+（本提示只在首次打开时出现，点右上角 ✕ 后不再显示；想再看一次可点侧栏「接口配置」里的「如何配置」。）`;
+
+/* 首次打开时按当前环境显示提示条 */
+function initHostBanner() {
+  var el = $('#hostBanner');
+  if (!el) return;
+
+  var dismissed = false;
+  try { dismissed = localStorage.getItem(LS_HB) === '1'; } catch (e) {}
+  if (dismissed) return;
+
+  var isFile = String(location.protocol) === 'file:';
+  el.querySelector('.hb-ico').textContent = isFile ? 'ℹ️' : '⚠️';
+  $('#hostBannerText').textContent = isFile
+    ? '当前是以本地文件（file://）打开，建议部署到 https 静态托管后再使用。'
+    : '官方接口不支持浏览器跨域直连，请把「接口地址」改成你自己的代理地址。';
+  el.classList.remove('hidden');
+
+  $('#hostBannerClose').addEventListener('click', function () {
+    el.classList.add('hidden');
+    try { localStorage.setItem(LS_HB, '1'); } catch (e) {}
+  });
+  $('#hostBannerHelp').addEventListener('click', showProxyHelp);
+}
+
+function showProxyHelp() {
+  openModal('如何配置 CORS 代理（让页面能直连 DeepSeek）', PROXY_HELP);
+}
+/* ================= 启动 ================= */
+function init() {
+  chatEl = $('#chat');
+  fillUI();
+  renderPresets();
+  bind();
+  initHostBanner();
+  if (isPhone()) closeSide(); else $('#side').classList.remove('collapsed');
+  if (touchMode) $('#input').placeholder = '输入消息…  点右侧「发送」按钮发送';
+  paintMessages();
+  autoGrow();
+  showUsage();
+  setStatus('就绪');
+  $('#input').focus();
+}
+
+init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "DeepSeek 对话 · 提示词注入版",
+  "short_name": "DeepSeek 对话",
+  "description": "纯前端单文件 DeepSeek 对话页：支持系统提示词注入、前缀/后缀注入与流式输出。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
